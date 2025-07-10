@@ -26,6 +26,7 @@ body {
 
 #root {
   min-height: 100vh;
+  width: 100%;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -68,9 +69,7 @@ body {
     position: relative;
   }
   
-  .status-info {
-    display: none;
-  }
+  /* .statusInfo deleted: statusInfo now displays correctly on mobile devices */
 }
 
 h1 {
@@ -238,7 +237,7 @@ button:hover {
   font-size: 0.95rem;
 }
 
-.status-2xx, .status-3xx {
+.status-1xx, .status-2xx, .status-3xx {
   color: var(--success-color);
   font-weight: bold;
 }

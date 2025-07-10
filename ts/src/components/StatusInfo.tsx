@@ -1,6 +1,7 @@
 import React from 'react';
 
-type StatusCodeCategory = '2xx' | '3xx' | '4xx' | '5xx' | 'invalid';
+// Status 1xx added
+type StatusCodeCategory = '1xx' | '2xx' | '3xx' | '4xx' | '5xx' | 'invalid';
 
 interface StatusInfoProps {
   category: StatusCodeCategory;
@@ -29,6 +30,7 @@ const StatusInfo: React.FC<StatusInfoProps> = ({
           {inputValue && statusCodeMap[inputValue.toLowerCase()] && (
             <p><strong>Code:</strong> <span className={`status-${category}`}>{statusCodeMap[inputValue.toLowerCase()]}</span></p>
           )}
+          {category === '1xx' && <p className="status-message">ℹ Info! The request was received and the process is continuing..</p>}
           {category === '2xx' && <p className="status-message">✓ Success! The request was successful.</p>}
           {category === '3xx' && <p className="status-message">↪ Redirection! Further action is needed.</p>}
           {category === '4xx' && <p className="status-message">✗ Client Error! The request contains bad syntax or cannot be fulfilled.</p>}

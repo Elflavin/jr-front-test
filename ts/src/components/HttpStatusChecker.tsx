@@ -5,11 +5,19 @@ import TrafficLight from './TrafficLight';
 import StatusInfo from './StatusInfo';
 import InfoButton from './InfoButton';
 import Modal from './Modal';
+import StatusHistoryChart from './StatusHistoryChart';
+import useStatusHistory from '../hooks/useStatusHistory';
 
 type TrafficLightStatus = 'green' | 'orange' | 'red' | 'off';
-type StatusCodeCategory = '2xx' | '3xx' | '4xx' | '5xx' | 'invalid';
+type StatusCodeCategory = '1xx' | '2xx' | '3xx' | '4xx' | '5xx' | 'invalid';
 
 const statusCodeMap: Record<string, number> = {
+  // 1xx - Information
+  'continue': 100,
+  'switching protocols': 101,
+  'processing': 102,
+  'early hints': 103,
+
   // 2xx - Success
   'ok': 200,
   'created': 201,
@@ -54,8 +62,13 @@ const HttpStatusChecker: React.FC = () => {
   const [inputValue, setInputValue] = useState('');
   const [trafficLightStatus, setTrafficLightStatus] = useState<TrafficLightStatus>('off');
   const [statusCategory, setStatusCategory] = useState<StatusCodeCategory>('invalid');
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [isUrl, setIsUrl] = useState(false); // Used to show the "open new tab" button if required
+  const [confirmedInput, setConfirmedInput] = useState(''); // Used to maintain the code in the info modal until a new one is required
+
+  const { history, addStatus } = useStatusHistory();
   
   // Check if the device is mobile based on screen width
   useEffect(() => {
@@ -78,8 +91,8 @@ const HttpStatusChecker: React.FC = () => {
   const handleInputChange = (value: string) => {
     setInputValue(value);
   };
-  
-  const checkStatusCode = () => {
+
+  const checkStatusCode = async () => {
     // Check if input is empty
     if (!inputValue.trim()) {
       setTrafficLightStatus('off');
@@ -89,18 +102,33 @@ const HttpStatusChecker: React.FC = () => {
     
     let statusCode: number | null = null;
     
+    // Set static code in info modal
+    setConfirmedInput(inputValue);
+    
     // Check if input is a number
     if (/^\d+$/.test(inputValue)) {
       statusCode = parseInt(inputValue, 10);
+      setIsUrl(false);
     } else {
+      // Check if input is a valid url
+      statusCode = await urlRequest(inputValue);
+      
       // Check if input is a status text
+      if(statusCode === null){
       const normalizedInput = inputValue.toLowerCase().trim();
       statusCode = statusCodeMap[normalizedInput] || null;
+      }
     }
     
     // Determine the status category
     if (statusCode !== null) {
-      if (statusCode >= 200 && statusCode < 300) {
+
+      addStatus({ code: statusCode, category: statusCategory, timestamp: Date.now() }); // Add statusCode to the history
+
+      if (statusCode >=100 && statusCode < 200){ // Category 1xx added, considered successful
+        setTrafficLightStatus('green');
+        setStatusCategory('1xx');
+      } else if (statusCode >= 200 && statusCode < 300) {
         setTrafficLightStatus('green');
         setStatusCategory('2xx');
       } else if (statusCode >= 300 && statusCode < 400) {
@@ -134,32 +162,72 @@ const HttpStatusChecker: React.FC = () => {
       
       <TrafficLight status={trafficLightStatus} />
       
+      {/* If trafficLight is green shows a button to open a new tab to the url */}
+      {trafficLightStatus === 'green' && isUrl && (
+      <button
+        data-testid="open-url-button"
+        onClick={() => window.open(inputValue.trim(), '_blank')}
+        style={{ marginTop: '10px', padding: '8px 12px', cursor: 'pointer' }}
+      >
+        Open URL in a new tab
+      </button>
+      )}
+
       {/* Show StatusInfo directly on desktop, InfoButton on mobile */}
       {!isMobile ? (
         <StatusInfo 
           category={statusCategory}
           trafficLightStatus={trafficLightStatus}
-          inputValue={inputValue}
+          inputValue={confirmedInput}
           statusCodeMap={statusCodeMap}
         />
       ) : (
         <>
           {trafficLightStatus !== 'off' && (
-            <InfoButton onClick={() => setIsModalOpen(true)} />
+            <InfoButton onClick={() => setIsInfoModalOpen(true)} />
           )}
           
-          <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
+          <Modal isOpen={isInfoModalOpen} onClose={() => setIsInfoModalOpen(false)}>
             <StatusInfo 
               category={statusCategory}
               trafficLightStatus={trafficLightStatus}
-              inputValue={inputValue}
+              inputValue={confirmedInput}
               statusCodeMap={statusCodeMap}
             />
           </Modal>
         </>
       )}
+      <button onClick={() => setIsHistoryModalOpen(true)}>History</button>
+
+      <Modal isOpen={isHistoryModalOpen} onClose={() => setIsHistoryModalOpen(false)}>
+        <div data-testid="history-chart">
+          <StatusHistoryChart history={history} />
+        </div>
+      </Modal>
     </div>
   );
+
+  /**
+ * Realiza una peticion HEAD a la URL usando un proxy publico para evitar CORS.
+ * IMPORTANTE: Este proxy lo uso solo para demos y pruebas, no para produccion.
+ * 
+ * @param input URL to validate
+ * @returns HTTP status code or null if not accesible
+ */
+  async function urlRequest(input: string): Promise<number | null> {
+  try {
+    // Public proxy to avoid CORS
+    const proxy = "https://cors-anywhere.herokuapp.com/";
+
+    const url = new URL(input.trim());
+    const response = await fetch(proxy + url.href, { method: 'HEAD' });
+    setIsUrl(true);
+    return response.status; // If valid returns status
+  } catch (error) {
+    console.error('Error en la petición a la URL:', error);
+    return null; // Returns null in case of failure
+  }
+}
 };
 
 export default HttpStatusChecker;
